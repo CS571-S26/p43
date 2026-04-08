@@ -1,10 +1,10 @@
-import { Alert, Button, Container } from 'react-bootstrap'
-import { Link, useParams } from 'react-router-dom'
-import BoardPreview from '../components/BoardPreview'
+import { Alert, Button, Container } from 'react-bootstrap';
+import { Link, useParams } from 'react-router-dom';
+import BoardPreview from '../components/BoardPreview';
 
-function FeedbackBoardPage({ projects }) {
-  const { projectId } = useParams()
-  const project = projects.find((item) => item.id === projectId)
+function FeedbackBoardPage({ projects, onAddTicket, onVote }) {
+  const { projectId } = useParams();
+  const project = projects.find((item) => item.id === projectId);
 
   return (
     <div className="page-section">
@@ -20,11 +20,15 @@ function FeedbackBoardPage({ projects }) {
             </Button>
           </Alert>
         ) : (
-          <BoardPreview project={project} />
+          <BoardPreview
+            project={project}
+            onAddTicket={onAddTicket}
+            onVote={onVote}
+          />
         )}
       </Container>
     </div>
-  )
+  );
 }
 
-export default FeedbackBoardPage
+export default FeedbackBoardPage;

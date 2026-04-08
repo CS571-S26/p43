@@ -276,3 +276,70 @@
     margin-top: 0.25rem;
   }
 }
+
+.ticket-card .btn {
+  border-radius: 0.8rem;
+  font-weight: 600;
+}
+
+textarea.form-control {
+  resize: vertical;
+}
+
+.flex-grow-1 {
+  min-width: 240px;
+}
+
+.vote-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: nowrap;
+}
+
+.vote-button-column {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 68px;
+}
+
+.vote-button-column .btn {
+  height: 30px;
+  min-height: 30px;
+  padding: 0 0.9rem;
+  line-height: 1;
+  font-size: 0.95rem;
+  border-radius: 0.8rem;
+}
+
+.vote-pill {
+  min-width: 92px;
+  border-radius: 1rem;
+  padding: 0.65rem 0.8rem;
+  text-align: center;
+  font-weight: 700;
+}
+
+.btn-outline-danger {
+  color: #b94a48 !important;
+  border-color: #e0a9a7 !important;
+}
+
+.btn-outline-danger:hover,
+.btn-outline-danger:focus {
+  background-color: #fdeceb !important;
+  color: #8f2f2d !important;
+  border-color: #e0a9a7 !important;
+}
+
+.btn-danger {
+  background-color: #d96c68 !important;
+  border-color: #d96c68 !important;
+}
+
+.btn-danger:hover,
+.btn-danger:focus {
+  background-color: #bf5956 !important;
+  border-color: #bf5956 !important;
+}

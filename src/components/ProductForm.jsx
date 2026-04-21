@@ -11,6 +11,8 @@ const emptyForm = {
 
 function ProductForm({ onAddProject }) {
   const [formData, setFormData] = useState(emptyForm);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const navigate = useNavigate();
 
   const handleChange = (event) => {
@@ -21,11 +23,21 @@ function ProductForm({ onAddProject }) {
     }));
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    const newProjectId = onAddProject(formData);
-    setFormData(emptyForm);
-    navigate(`/board/${newProjectId}`);
+    setErrorMessage('');
+    setIsSubmitting(true);
+
+    try {
+      const newProjectId = await onAddProject(formData);
+      setFormData(emptyForm);
+      navigate(`/board/${newProjectId}`);
+    } catch (error) {
+      console.error('Unable to create project:', error);
+      setErrorMessage('We could not create the project right now. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -34,7 +46,7 @@ function ProductForm({ onAddProject }) {
         <div className="mb-3">
           <h3 className="section-title mb-1">Create a new project</h3>
           <p className="text-muted mb-0">
-            Start a new feedback board with a product name, category, and short description.
+            Start a shared feedback board with a product name, category, and short description.
           </p>
         </div>
 
@@ -97,9 +109,13 @@ function ProductForm({ onAddProject }) {
             </Col>
           </Row>
 
+          {errorMessage ? (
+            <p className="text-danger small mt-3 mb-0">{errorMessage}</p>
+          ) : null}
+
           <div className="d-flex justify-content-end mt-4">
-            <Button type="submit" variant="success">
-              Add Project
+            <Button type="submit" variant="success" disabled={isSubmitting}>
+              {isSubmitting ? 'Creating...' : 'Add Project'}
             </Button>
           </div>
         </Form>

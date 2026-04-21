@@ -1,6 +1,7 @@
-import ProductCard from '../components/ProductCard'
+import { Alert, Spinner } from 'react-bootstrap';
+import ProductCard from '../components/ProductCard';
 
-function HomePage({ projects }) {
+function HomePage({ projects, projectsLoading, currentUser, authLoading }) {
   return (
     <div>
       <section className="hero-section mb-5">
@@ -8,8 +9,8 @@ function HomePage({ projects }) {
           <p className="hero-kicker">Collect ideas. Organize feedback.</p>
           <h1 className="hero-title">Build better products with shared feedback.</h1>
           <p className="hero-text">
-            This starter app lets users explore products and open a simple
-            feedback board to view feature request tickets.
+            This version uses Firebase so multiple accounts can see the same boards,
+            submit ideas, and vote on features together.
           </p>
         </div>
       </section>
@@ -24,16 +25,37 @@ function HomePage({ projects }) {
           </div>
         </div>
 
-        <div className="row g-4">
-          {projects.map((project) => (
-            <div className="col-md-6 col-lg-4" key={project.id}>
-              <ProductCard project={project} />
+        {authLoading ? (
+          <div className="d-flex justify-content-center py-5">
+            <Spinner animation="border" role="status" />
+          </div>
+        ) : !currentUser ? (
+          <Alert variant="light" className="border shadow-sm mt-4">
+            <strong>Sign in to view project boards.</strong>
+            <div className="mt-2 text-muted">
+              You need an account to browse projects, open boards, submit ideas, and vote.
             </div>
-          ))}
-        </div>
+          </Alert>
+        ) : projectsLoading ? (
+          <div className="d-flex justify-content-center py-5">
+            <Spinner animation="border" role="status" />
+          </div>
+        ) : projects.length > 0 ? (
+          <div className="row g-4">
+            {projects.map((project) => (
+              <div className="col-md-6 col-lg-4" key={project.id}>
+                <ProductCard project={project} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state mt-4">
+            No projects exist yet. Create the first project after you sign in.
+          </div>
+        )}
       </section>
     </div>
-  )
+  );
 }
 
-export default HomePage
+export default HomePage;

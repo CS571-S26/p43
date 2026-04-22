@@ -304,7 +304,8 @@ function BoardPreview({
 
                           <div className="mt-3 d-flex gap-2 flex-wrap">
                             {showingProposed &&
-                            currentUser?.uid === ticket.createdByUid ? (
+                            (currentUser?.uid === ticket.createdByUid ||
+                              isProjectOwner) ? (
                               <Button
                                 variant="outline-danger"
                                 size="sm"

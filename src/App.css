@@ -182,6 +182,27 @@
   margin-bottom: 1.5rem;
 }
 
+.project-search-wrapper {
+  max-width: 560px;
+}
+
+.project-search-input {
+  background: #ffffff;
+  border: 1px solid #d4e7d8;
+  border-radius: 0.9rem;
+  padding: 0.8rem 1rem;
+}
+
+.project-search-input:focus {
+  border-color: #9ccca8;
+  box-shadow: 0 0 0 0.15rem rgba(83, 168, 106, 0.15);
+}
+
+.project-search-results {
+  color: #607767;
+  font-size: 0.95rem;
+}
+
 .new-idea-button {
   padding: 0.8rem 1.25rem !important;
   border-radius: 0.9rem !important;

@@ -290,15 +290,33 @@ function App() {
       throw new Error("You must be logged in to delete an idea.");
     }
 
+    const projectRef = doc(db, "projects", projectId);
     const ticketRef = doc(db, "projects", projectId, "tickets", ticketId);
-    const ticketSnapshot = await getDoc(ticketRef);
+
+    const [projectSnapshot, ticketSnapshot] = await Promise.all([
+      getDoc(projectRef),
+      getDoc(ticketRef),
+    ]);
+
+    if (!projectSnapshot.exists()) {
+      throw new Error("This project no longer exists.");
+    }
 
     if (!ticketSnapshot.exists()) {
       throw new Error("This idea no longer exists.");
     }
 
-    if (ticketSnapshot.data().createdByUid !== currentUser.uid) {
-      throw new Error("Only the creator of this idea can delete it.");
+    const projectData = projectSnapshot.data();
+    const ticketData = ticketSnapshot.data();
+
+    const canDeleteIdea =
+      ticketData.createdByUid === currentUser.uid ||
+      projectData.createdByUid === currentUser.uid;
+
+    if (!canDeleteIdea) {
+      throw new Error(
+        "Only the idea creator or the project owner can delete this idea.",
+      );
     }
 
     const relatedVotesSnapshot = await getDocs(
@@ -308,7 +326,6 @@ function App() {
       ),
     );
 
-    const projectRef = doc(db, "projects", projectId);
     const batch = writeBatch(db);
 
     relatedVotesSnapshot.forEach((voteDoc) => {

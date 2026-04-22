@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
-import { Alert, Button, Container, Spinner } from 'react-bootstrap';
-import { Link, useParams } from 'react-router-dom';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import BoardPreview from '../components/BoardPreview';
-import { db } from '../lib/firebase';
+import { useEffect, useState } from "react";
+import { Alert, Button, Container, Spinner } from "react-bootstrap";
+import { Link, useParams } from "react-router-dom";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
+import BoardPreview from "../components/BoardPreview";
+import { db } from "../lib/firebase";
 
 function FeedbackBoardPage({
   projects,
@@ -11,6 +11,9 @@ function FeedbackBoardPage({
   currentUser,
   onAddTicket,
   onVote,
+  onDeleteProject,
+  onDeleteTicket,
+  onMarkIdeaImplemented,
 }) {
   const { projectId } = useParams();
   const project = projects.find((item) => item.id === projectId);
@@ -23,7 +26,7 @@ function FeedbackBoardPage({
       return undefined;
     }
 
-    const ticketsCollection = collection(db, 'projects', projectId, 'tickets');
+    const ticketsCollection = collection(db, "projects", projectId, "tickets");
 
     const unsubscribe = onSnapshot(ticketsCollection, (snapshot) => {
       const nextTickets = snapshot.docs.map((ticketDoc) => ({
@@ -45,8 +48,8 @@ function FeedbackBoardPage({
     }
 
     const votesQuery = query(
-      collection(db, 'projects', projectId, 'votes'),
-      where('userId', '==', currentUser.uid),
+      collection(db, "projects", projectId, "votes"),
+      where("userId", "==", currentUser.uid),
     );
 
     const unsubscribe = onSnapshot(votesQuery, (snapshot) => {
@@ -94,6 +97,9 @@ function FeedbackBoardPage({
             userVotesByTicket={userVotesByTicket}
             onAddTicket={onAddTicket}
             onVote={onVote}
+            onDeleteProject={onDeleteProject}
+            onDeleteTicket={onDeleteTicket}
+            onMarkIdeaImplemented={onMarkIdeaImplemented}
           />
         )}
       </Container>

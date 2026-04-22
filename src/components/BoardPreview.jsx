@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { Alert, Badge, Button, ButtonGroup, Card, Form } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
+import { useState } from "react";
+import { Alert, Badge, Button, ButtonGroup, Card, Form } from "react-bootstrap";
+import { Link, useNavigate } from "react-router-dom";
 
 const emptyIdeaForm = {
-  title: '',
-  description: '',
+  title: "",
+  description: "",
 };
 
 function BoardPreview({
@@ -14,17 +14,26 @@ function BoardPreview({
   userVotesByTicket,
   onAddTicket,
   onVote,
+  onDeleteProject,
+  onDeleteTicket,
+  onMarkIdeaImplemented,
 }) {
-  const [activeView, setActiveView] = useState('proposed');
+  const [activeView, setActiveView] = useState("proposed");
   const [showIdeaForm, setShowIdeaForm] = useState(false);
   const [ideaForm, setIdeaForm] = useState(emptyIdeaForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState("");
+  const navigate = useNavigate();
+  const [actionErrorMessage, setActionErrorMessage] = useState("");
+  const [isDeletingProject, setIsDeletingProject] = useState(false);
+  const [deletingTicketId, setDeletingTicketId] = useState("");
+  const isProjectOwner = currentUser?.uid === project.createdByUid;
+  const [movingTicketId, setMovingTicketId] = useState("");
 
   const proposedIdeas = [...(tickets ?? [])].sort((a, b) => b.votes - a.votes);
   const implementedIdeas = project.implementedIdeas ?? [];
 
-  const showingProposed = activeView === 'proposed';
+  const showingProposed = activeView === "proposed";
   const visibleIdeas = showingProposed ? proposedIdeas : implementedIdeas;
 
   const handleIdeaChange = (event) => {
@@ -42,17 +51,20 @@ function BoardPreview({
       return;
     }
 
-    setErrorMessage('');
+    setErrorMessage("");
+    setActionErrorMessage("");
     setIsSubmitting(true);
 
     try {
       await onAddTicket(project.id, ideaForm);
       setIdeaForm(emptyIdeaForm);
       setShowIdeaForm(false);
-      setActiveView('proposed');
+      setActiveView("proposed");
     } catch (error) {
-      console.error('Unable to add idea:', error);
-      setErrorMessage('We could not submit your idea right now. Please try again.');
+      console.error("Unable to add idea:", error);
+      setErrorMessage(
+        "We could not submit your idea right now. Please try again.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -68,7 +80,82 @@ function BoardPreview({
     try {
       await onVote(project.id, ticketId, currentVote, voteType);
     } catch (error) {
-      console.error('Vote failed:', error);
+      console.error("Vote failed:", error);
+    }
+  };
+
+  const handleDeleteProjectClick = async () => {
+    if (!isProjectOwner) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete "${project.name}" and all of its ideas? This cannot be undone.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setActionErrorMessage("");
+    setIsDeletingProject(true);
+
+    try {
+      await onDeleteProject(project.id);
+      navigate("/");
+    } catch (error) {
+      console.error("Project delete failed:", error);
+      setActionErrorMessage("We could not delete this project right now.");
+    } finally {
+      setIsDeletingProject(false);
+    }
+  };
+
+  const handleDeleteTicketClick = async (ticketId, ticketTitle) => {
+    const confirmed = window.confirm(
+      `Delete "${ticketTitle}"? This cannot be undone.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setActionErrorMessage("");
+    setDeletingTicketId(ticketId);
+
+    try {
+      await onDeleteTicket(project.id, ticketId);
+    } catch (error) {
+      console.error("Idea delete failed:", error);
+      setActionErrorMessage("We could not delete this idea right now.");
+    } finally {
+      setDeletingTicketId("");
+    }
+  };
+
+  const handleMarkImplementedClick = async (ticket) => {
+    if (!isProjectOwner) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Move "${ticket.title}" to Already Implemented?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setActionErrorMessage("");
+    setMovingTicketId(ticket.id);
+
+    try {
+      await onMarkIdeaImplemented(project.id, ticket.id);
+    } catch (error) {
+      console.error("Unable to mark idea as implemented:", error);
+      setActionErrorMessage("We could not move this idea right now.");
+    } finally {
+      setMovingTicketId("");
     }
   };
 
@@ -81,22 +168,37 @@ function BoardPreview({
           </Badge>
           <h2 className="page-title mb-2">{project.name} Feedback Board</h2>
           <p className="text-muted mb-1">{project.summary}</p>
-          <p className="small text-secondary mb-0">Managed by {project.owner}</p>
+          <p className="small text-secondary mb-0">
+            Managed by {project.owner}
+          </p>
         </div>
 
-        <Button
-          className="new-idea-button board-page-action"
-          variant="success"
-          disabled={!currentUser}
-          onClick={() => setShowIdeaForm((prev) => !prev)}
-        >
-          {showIdeaForm ? 'Cancel' : '+ New Idea'}
-        </Button>
+        <div className="d-flex gap-2 flex-wrap board-page-action">
+          {isProjectOwner ? (
+            <Button
+              variant="outline-danger"
+              disabled={isDeletingProject}
+              onClick={handleDeleteProjectClick}
+            >
+              {isDeletingProject ? "Deleting Project..." : "Delete Project"}
+            </Button>
+          ) : null}
+
+          <Button
+            className="new-idea-button"
+            variant="success"
+            disabled={!currentUser}
+            onClick={() => setShowIdeaForm((prev) => !prev)}
+          >
+            {showIdeaForm ? "Cancel" : "+ New Idea"}
+          </Button>
+        </div>
       </div>
 
       {!currentUser ? (
         <Alert variant="light" className="border shadow-sm">
-          <strong>Want to participate?</strong> Sign in to submit ideas and vote on existing tickets.
+          <strong>Want to participate?</strong> Sign in to submit ideas and vote
+          on existing tickets.
           <div className="mt-3">
             <Button as={Link} to="/auth" variant="success" size="sm">
               Sign Up / Log In
@@ -142,7 +244,7 @@ function BoardPreview({
 
               <div className="d-flex justify-content-end">
                 <Button type="submit" variant="success" disabled={isSubmitting}>
-                  {isSubmitting ? 'Adding...' : 'Add Idea'}
+                  {isSubmitting ? "Adding..." : "Add Idea"}
                 </Button>
               </div>
             </Form>
@@ -150,30 +252,35 @@ function BoardPreview({
         </Card>
       ) : null}
 
+      {actionErrorMessage ? (
+        <Alert variant="danger" className="border-0 shadow-sm mb-4">
+          {actionErrorMessage}
+        </Alert>
+      ) : null}
       <Card className="board-shell border-0 shadow-sm">
         <Card.Body>
           <div className="board-section-header d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
             <div>
               <h3 className="section-title mb-1">
-                {showingProposed ? 'Proposed ideas' : 'Already implemented'}
+                {showingProposed ? "Proposed ideas" : "Already implemented"}
               </h3>
               <p className="text-muted mb-0">
                 {showingProposed
-                  ? 'These are feature requests and improvements users want next.'
-                  : 'These ideas have already been added to the product.'}
+                  ? "These are feature requests and improvements users want next."
+                  : "These ideas have already been added to the product."}
               </p>
             </div>
 
             <ButtonGroup>
               <Button
-                variant={showingProposed ? 'success' : 'outline-success'}
-                onClick={() => setActiveView('proposed')}
+                variant={showingProposed ? "success" : "outline-success"}
+                onClick={() => setActiveView("proposed")}
               >
                 Proposed Ideas
               </Button>
               <Button
-                variant={!showingProposed ? 'success' : 'outline-success'}
-                onClick={() => setActiveView('implemented')}
+                variant={!showingProposed ? "success" : "outline-success"}
+                onClick={() => setActiveView("implemented")}
               >
                 Already Implemented
               </Button>
@@ -191,29 +298,79 @@ function BoardPreview({
                       <div className="d-flex justify-content-between align-items-start gap-3 flex-wrap">
                         <div className="flex-grow-1">
                           <h4 className="ticket-title mb-1">{ticket.title}</h4>
-                          <p className="text-muted mb-0">{ticket.description}</p>
+                          <p className="text-muted mb-0">
+                            {ticket.description}
+                          </p>
+
+                          <div className="mt-3 d-flex gap-2 flex-wrap">
+                            {showingProposed &&
+                            currentUser?.uid === ticket.createdByUid ? (
+                              <Button
+                                variant="outline-danger"
+                                size="sm"
+                                disabled={deletingTicketId === ticket.id}
+                                onClick={() =>
+                                  handleDeleteTicketClick(
+                                    ticket.id,
+                                    ticket.title,
+                                  )
+                                }
+                              >
+                                {deletingTicketId === ticket.id
+                                  ? "Deleting..."
+                                  : "Delete"}
+                              </Button>
+                            ) : null}
+
+                            {showingProposed && isProjectOwner ? (
+                              <Button
+                                variant="outline-success"
+                                size="sm"
+                                disabled={movingTicketId === ticket.id}
+                                onClick={() =>
+                                  handleMarkImplementedClick(ticket)
+                                }
+                              >
+                                {movingTicketId === ticket.id
+                                  ? "Moving..."
+                                  : "Mark Implemented"}
+                              </Button>
+                            ) : null}
+                          </div>
                         </div>
 
                         {showingProposed ? (
                           <div className="vote-actions d-flex align-items-center gap-3">
                             <div className="vote-pill">
-                              <span className="vote-number">{ticket.votes}</span>
+                              <span className="vote-number">
+                                {ticket.votes}
+                              </span>
                               <span className="vote-text">votes</span>
                             </div>
 
                             <div className="vote-button-column d-flex flex-column gap-2">
                               <Button
-                                variant={currentUserVote === 1 ? 'success' : 'outline-success'}
+                                variant={
+                                  currentUserVote === 1
+                                    ? "success"
+                                    : "outline-success"
+                                }
                                 disabled={!currentUser}
-                                onClick={() => handleVoteClick(ticket.id, 'up')}
+                                onClick={() => handleVoteClick(ticket.id, "up")}
                               >
                                 Upvote
                               </Button>
 
                               <Button
-                                variant={currentUserVote === -1 ? 'danger' : 'outline-danger'}
+                                variant={
+                                  currentUserVote === -1
+                                    ? "danger"
+                                    : "outline-danger"
+                                }
                                 disabled={!currentUser}
-                                onClick={() => handleVoteClick(ticket.id, 'down')}
+                                onClick={() =>
+                                  handleVoteClick(ticket.id, "down")
+                                }
                               >
                                 Downvote
                               </Button>
@@ -230,8 +387,8 @@ function BoardPreview({
             ) : (
               <div className="empty-state">
                 {showingProposed
-                  ? 'No proposed ideas have been listed for this project yet.'
-                  : 'No implemented ideas have been listed for this project yet.'}
+                  ? "No proposed ideas have been listed for this project yet."
+                  : "No implemented ideas have been listed for this project yet."}
               </div>
             )}
           </div>

@@ -1,14 +1,12 @@
-import { useEffect, useState } from 'react';
-import { Container, Spinner } from 'react-bootstrap';
-import {
-  Routes,
-  Route,
-  Navigate,
-} from 'react-router-dom';
+import { useEffect, useState } from "react";
+import { Container, Spinner } from "react-bootstrap";
+import { Routes, Route, Navigate } from "react-router-dom";
 import {
   addDoc,
+  arrayUnion,
   collection,
   doc,
+  getDoc,
   getDocs,
   increment,
   limit,
@@ -16,18 +14,20 @@ import {
   query,
   runTransaction,
   serverTimestamp,
+  where,
   writeBatch,
-} from 'firebase/firestore';
-import AppNavbar from './components/AppNavbar';
-import ProtectedRoute from './components/ProtectedRoute';
-import HomePage from './pages/HomePage';
-import FeedbackBoardPage from './pages/FeedbackBoardPage';
-import CreateProjectPage from './pages/CreateProjectPage';
-import AuthPage from './pages/AuthPage';
-import { initialProjects } from './data/mockProjects';
-import { db } from './lib/firebase';
-import { useAuth } from './contexts/AuthContext';
-import './App.css';
+} from "firebase/firestore";
+import AppNavbar from "./components/AppNavbar";
+import ProtectedRoute from "./components/ProtectedRoute";
+import HomePage from "./pages/HomePage";
+import MyProjectsPage from "./pages/MyProjectsPage";
+import FeedbackBoardPage from "./pages/FeedbackBoardPage";
+import CreateProjectPage from "./pages/CreateProjectPage";
+import AuthPage from "./pages/AuthPage";
+import { initialProjects } from "./data/mockProjects";
+import { db } from "./lib/firebase";
+import { useAuth } from "./contexts/AuthContext";
+import "./App.css";
 
 function App() {
   const [projects, setProjects] = useState([]);
@@ -48,7 +48,7 @@ function App() {
 
     setProjectsLoading(true);
 
-    const projectsCollection = collection(db, 'projects');
+    const projectsCollection = collection(db, "projects");
 
     const unsubscribe = onSnapshot(projectsCollection, (snapshot) => {
       const nextProjects = snapshot.docs
@@ -77,7 +77,7 @@ function App() {
 
     const seedMockProjectsIfNeeded = async () => {
       const existingProjectsSnapshot = await getDocs(
-        query(collection(db, 'projects'), limit(1)),
+        query(collection(db, "projects"), limit(1)),
       );
 
       if (!existingProjectsSnapshot.empty) {
@@ -88,7 +88,7 @@ function App() {
       const batch = writeBatch(db);
 
       initialProjects.forEach((project) => {
-        const projectRef = doc(db, 'projects', project.id);
+        const projectRef = doc(db, "projects", project.id);
 
         batch.set(projectRef, {
           name: project.name,
@@ -98,12 +98,18 @@ function App() {
           implementedIdeas: project.implementedIdeas ?? [],
           ticketCount: project.tickets?.length ?? 0,
           createdByUid: currentUser.uid,
-          createdByEmail: currentUser.email ?? '',
+          createdByEmail: currentUser.email ?? "",
           createdAt: serverTimestamp(),
         });
 
         (project.tickets ?? []).forEach((ticket) => {
-          const ticketRef = doc(db, 'projects', project.id, 'tickets', String(ticket.id));
+          const ticketRef = doc(
+            db,
+            "projects",
+            project.id,
+            "tickets",
+            String(ticket.id),
+          );
 
           batch.set(ticketRef, {
             title: ticket.title,
@@ -111,7 +117,7 @@ function App() {
             votes: ticket.votes ?? 0,
             createdAt: serverTimestamp(),
             createdByUid: currentUser.uid,
-            createdByEmail: currentUser.email ?? '',
+            createdByEmail: currentUser.email ?? "",
           });
         });
       });
@@ -121,17 +127,17 @@ function App() {
     };
 
     seedMockProjectsIfNeeded().catch((error) => {
-      console.error('Could not seed starter projects:', error);
+      console.error("Could not seed starter projects:", error);
       setSeedFinished(true);
     });
   }, [authLoading, currentUser, seedFinished]);
 
   const handleAddProject = async (newProject) => {
     if (!currentUser) {
-      throw new Error('You must be logged in to create a project.');
+      throw new Error("You must be logged in to create a project.");
     }
 
-    const projectRef = await addDoc(collection(db, 'projects'), {
+    const projectRef = await addDoc(collection(db, "projects"), {
       name: newProject.name,
       category: newProject.category,
       owner: newProject.owner,
@@ -139,7 +145,7 @@ function App() {
       implementedIdeas: [],
       ticketCount: 0,
       createdByUid: currentUser.uid,
-      createdByEmail: currentUser.email ?? '',
+      createdByEmail: currentUser.email ?? "",
       createdAt: serverTimestamp(),
     });
 
@@ -148,11 +154,11 @@ function App() {
 
   const handleAddTicket = async (projectId, newTicket) => {
     if (!currentUser) {
-      throw new Error('You must be logged in to add an idea.');
+      throw new Error("You must be logged in to add an idea.");
     }
 
-    const ticketRef = doc(collection(db, 'projects', projectId, 'tickets'));
-    const projectRef = doc(db, 'projects', projectId);
+    const ticketRef = doc(collection(db, "projects", projectId, "tickets"));
+    const projectRef = doc(db, "projects", projectId);
     const batch = writeBatch(db);
 
     batch.set(ticketRef, {
@@ -160,7 +166,7 @@ function App() {
       description: newTicket.description,
       votes: 0,
       createdByUid: currentUser.uid,
-      createdByEmail: currentUser.email ?? '',
+      createdByEmail: currentUser.email ?? "",
       createdAt: serverTimestamp(),
     });
 
@@ -173,13 +179,13 @@ function App() {
 
   const handleVote = async (projectId, ticketId, currentVote, voteType) => {
     if (!currentUser) {
-      throw new Error('You must be logged in to vote.');
+      throw new Error("You must be logged in to vote.");
     }
 
     let nextVote = currentVote;
     let delta = 0;
 
-    if (voteType === 'up') {
+    if (voteType === "up") {
       if (currentVote === 1) {
         nextVote = 0;
         delta = -1;
@@ -192,7 +198,7 @@ function App() {
       }
     }
 
-    if (voteType === 'down') {
+    if (voteType === "down") {
       if (currentVote === -1) {
         nextVote = 0;
         delta = 1;
@@ -205,14 +211,20 @@ function App() {
       }
     }
 
-    const ticketRef = doc(db, 'projects', projectId, 'tickets', ticketId);
-    const voteRef = doc(db, 'projects', projectId, 'votes', `${ticketId}_${currentUser.uid}`);
+    const ticketRef = doc(db, "projects", projectId, "tickets", ticketId);
+    const voteRef = doc(
+      db,
+      "projects",
+      projectId,
+      "votes",
+      `${ticketId}_${currentUser.uid}`,
+    );
 
     await runTransaction(db, async (transaction) => {
       const ticketSnapshot = await transaction.get(ticketRef);
 
       if (!ticketSnapshot.exists()) {
-        throw new Error('The ticket no longer exists.');
+        throw new Error("The ticket no longer exists.");
       }
 
       const currentVotes = ticketSnapshot.data().votes ?? 0;
@@ -232,6 +244,142 @@ function App() {
         });
       }
     });
+  };
+
+  const handleDeleteProject = async (projectId) => {
+    if (!currentUser) {
+      throw new Error("You must be logged in to delete a project.");
+    }
+
+    const projectRef = doc(db, "projects", projectId);
+    const projectSnapshot = await getDoc(projectRef);
+
+    if (!projectSnapshot.exists()) {
+      throw new Error("This project no longer exists.");
+    }
+
+    if (projectSnapshot.data().createdByUid !== currentUser.uid) {
+      throw new Error("Only the creator of this project can delete it.");
+    }
+
+    const ticketsSnapshot = await getDocs(
+      collection(db, "projects", projectId, "tickets"),
+    );
+
+    const votesSnapshot = await getDocs(
+      collection(db, "projects", projectId, "votes"),
+    );
+
+    const batch = writeBatch(db);
+
+    ticketsSnapshot.forEach((ticketDoc) => {
+      batch.delete(ticketDoc.ref);
+    });
+
+    votesSnapshot.forEach((voteDoc) => {
+      batch.delete(voteDoc.ref);
+    });
+
+    batch.delete(projectRef);
+
+    await batch.commit();
+  };
+
+  const handleDeleteTicket = async (projectId, ticketId) => {
+    if (!currentUser) {
+      throw new Error("You must be logged in to delete an idea.");
+    }
+
+    const ticketRef = doc(db, "projects", projectId, "tickets", ticketId);
+    const ticketSnapshot = await getDoc(ticketRef);
+
+    if (!ticketSnapshot.exists()) {
+      throw new Error("This idea no longer exists.");
+    }
+
+    if (ticketSnapshot.data().createdByUid !== currentUser.uid) {
+      throw new Error("Only the creator of this idea can delete it.");
+    }
+
+    const relatedVotesSnapshot = await getDocs(
+      query(
+        collection(db, "projects", projectId, "votes"),
+        where("ticketId", "==", ticketId),
+      ),
+    );
+
+    const projectRef = doc(db, "projects", projectId);
+    const batch = writeBatch(db);
+
+    relatedVotesSnapshot.forEach((voteDoc) => {
+      batch.delete(voteDoc.ref);
+    });
+
+    batch.delete(ticketRef);
+
+    batch.update(projectRef, {
+      ticketCount: increment(-1),
+    });
+
+    await batch.commit();
+  };
+
+  const handleMarkIdeaImplemented = async (projectId, ticketId) => {
+    if (!currentUser) {
+      throw new Error("You must be logged in to update an idea.");
+    }
+
+    const projectRef = doc(db, "projects", projectId);
+    const ticketRef = doc(db, "projects", projectId, "tickets", ticketId);
+
+    const [projectSnapshot, ticketSnapshot] = await Promise.all([
+      getDoc(projectRef),
+      getDoc(ticketRef),
+    ]);
+
+    if (!projectSnapshot.exists()) {
+      throw new Error("This project no longer exists.");
+    }
+
+    if (!ticketSnapshot.exists()) {
+      throw new Error("This idea no longer exists.");
+    }
+
+    const projectData = projectSnapshot.data();
+    const ticketData = ticketSnapshot.data();
+
+    if (projectData.createdByUid !== currentUser.uid) {
+      throw new Error("Only the project owner can mark ideas as implemented.");
+    }
+
+    const relatedVotesSnapshot = await getDocs(
+      query(
+        collection(db, "projects", projectId, "votes"),
+        where("ticketId", "==", ticketId),
+      ),
+    );
+
+    const batch = writeBatch(db);
+
+    batch.update(projectRef, {
+      implementedIdeas: arrayUnion({
+        id: ticketId,
+        title: ticketData.title,
+        description: ticketData.description,
+        createdByUid: ticketData.createdByUid ?? "",
+        createdByEmail: ticketData.createdByEmail ?? "",
+        implementedAt: new Date().toISOString(),
+      }),
+      ticketCount: increment(-1),
+    });
+
+    relatedVotesSnapshot.forEach((voteDoc) => {
+      batch.delete(voteDoc.ref);
+    });
+
+    batch.delete(ticketRef);
+
+    await batch.commit();
   };
 
   return (
@@ -276,6 +424,19 @@ function App() {
           />
 
           <Route
+            path="/my-projects"
+            element={
+              <ProtectedRoute>
+                <MyProjectsPage
+                  projects={projects}
+                  projectsLoading={projectsLoading}
+                  currentUser={currentUser}
+                />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/board/:projectId"
             element={
               <ProtectedRoute>
@@ -285,6 +446,9 @@ function App() {
                   currentUser={currentUser}
                   onAddTicket={handleAddTicket}
                   onVote={handleVote}
+                  onDeleteProject={handleDeleteProject}
+                  onDeleteTicket={handleDeleteTicket}
+                  onMarkIdeaImplemented={handleMarkIdeaImplemented}
                 />
               </ProtectedRoute>
             }

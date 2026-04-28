@@ -9,7 +9,6 @@ import {
   getDoc,
   getDocs,
   increment,
-  limit,
   onSnapshot,
   query,
   runTransaction,
@@ -24,7 +23,6 @@ import MyProjectsPage from "./pages/MyProjectsPage";
 import FeedbackBoardPage from "./pages/FeedbackBoardPage";
 import CreateProjectPage from "./pages/CreateProjectPage";
 import AuthPage from "./pages/AuthPage";
-import { initialProjects } from "./data/mockProjects";
 import { db } from "./lib/firebase";
 import { useAuth } from "./contexts/AuthContext";
 import "./App.css";
@@ -32,7 +30,6 @@ import "./App.css";
 function App() {
   const [projects, setProjects] = useState([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
-  const [seedFinished, setSeedFinished] = useState(false);
   const { currentUser, authLoading } = useAuth();
 
   useEffect(() => {
@@ -64,73 +61,6 @@ function App() {
 
     return unsubscribe;
   }, [authLoading, currentUser]);
-
-  useEffect(() => {
-    if (!currentUser) {
-      setSeedFinished(false);
-      return;
-    }
-
-    if (authLoading || seedFinished) {
-      return;
-    }
-
-    const seedMockProjectsIfNeeded = async () => {
-      const existingProjectsSnapshot = await getDocs(
-        query(collection(db, "projects"), limit(1)),
-      );
-
-      if (!existingProjectsSnapshot.empty) {
-        setSeedFinished(true);
-        return;
-      }
-
-      const batch = writeBatch(db);
-
-      initialProjects.forEach((project) => {
-        const projectRef = doc(db, "projects", project.id);
-
-        batch.set(projectRef, {
-          name: project.name,
-          category: project.category,
-          summary: project.summary,
-          owner: project.owner,
-          implementedIdeas: project.implementedIdeas ?? [],
-          ticketCount: project.tickets?.length ?? 0,
-          createdByUid: currentUser.uid,
-          createdByEmail: currentUser.email ?? "",
-          createdAt: serverTimestamp(),
-        });
-
-        (project.tickets ?? []).forEach((ticket) => {
-          const ticketRef = doc(
-            db,
-            "projects",
-            project.id,
-            "tickets",
-            String(ticket.id),
-          );
-
-          batch.set(ticketRef, {
-            title: ticket.title,
-            description: ticket.description,
-            votes: ticket.votes ?? 0,
-            createdAt: serverTimestamp(),
-            createdByUid: currentUser.uid,
-            createdByEmail: currentUser.email ?? "",
-          });
-        });
-      });
-
-      await batch.commit();
-      setSeedFinished(true);
-    };
-
-    seedMockProjectsIfNeeded().catch((error) => {
-      console.error("Could not seed starter projects:", error);
-      setSeedFinished(true);
-    });
-  }, [authLoading, currentUser, seedFinished]);
 
   const handleAddProject = async (newProject) => {
     if (!currentUser) {

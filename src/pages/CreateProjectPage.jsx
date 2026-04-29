@@ -7,7 +7,7 @@ function CreateProjectPage({ onAddProject }) {
         <div>
           <h2 className="section-title">Create a New Project</h2>
           <p className="section-subtitle">
-            Add a basic project to the board using local state.
+            Start a shared Firebase-backed feedback board with a structured category.
           </p>
         </div>
       </div>

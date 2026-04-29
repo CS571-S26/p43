@@ -10,6 +10,8 @@ function FeedbackBoardPage({
   projectsLoading,
   currentUser,
   onAddTicket,
+  onEditProject,
+  onEditTicket,
   onVote,
   onDeleteProject,
   onDeleteTicket,
@@ -20,6 +22,11 @@ function FeedbackBoardPage({
   const [tickets, setTickets] = useState([]);
   const [ticketsLoading, setTicketsLoading] = useState(true);
   const [userVotesByTicket, setUserVotesByTicket] = useState({});
+  const [ownerVoteData, setOwnerVoteData] = useState({
+    projectId: "",
+    votes: [],
+  });
+  const isProjectOwner = project?.createdByUid === currentUser?.uid;
 
   useEffect(() => {
     if (!projectId) {
@@ -43,7 +50,6 @@ function FeedbackBoardPage({
 
   useEffect(() => {
     if (!projectId || !currentUser) {
-      setUserVotesByTicket({});
       return undefined;
     }
 
@@ -65,6 +71,35 @@ function FeedbackBoardPage({
 
     return unsubscribe;
   }, [projectId, currentUser]);
+
+  useEffect(() => {
+    if (!projectId || !isProjectOwner) {
+      return undefined;
+    }
+
+    const votesCollection = collection(db, "projects", projectId, "votes");
+
+    const unsubscribe = onSnapshot(votesCollection, (snapshot) => {
+      const nextVotes = snapshot.docs.map((voteDoc) => ({
+        id: voteDoc.id,
+        ...voteDoc.data(),
+      }));
+
+      setOwnerVoteData({
+        projectId,
+        votes: nextVotes,
+      });
+    });
+
+    return unsubscribe;
+  }, [projectId, isProjectOwner]);
+
+  const ownerVoteRecords =
+    isProjectOwner && ownerVoteData.projectId === projectId
+      ? ownerVoteData.votes
+      : [];
+  const ownerStatsLoading =
+    isProjectOwner && ownerVoteData.projectId !== projectId;
 
   if (projectsLoading || ticketsLoading) {
     return (
@@ -95,7 +130,11 @@ function FeedbackBoardPage({
             tickets={tickets}
             currentUser={currentUser}
             userVotesByTicket={userVotesByTicket}
+            ownerVoteRecords={ownerVoteRecords}
+            ownerStatsLoading={ownerStatsLoading}
             onAddTicket={onAddTicket}
+            onEditProject={onEditProject}
+            onEditTicket={onEditTicket}
             onVote={onVote}
             onDeleteProject={onDeleteProject}
             onDeleteTicket={onDeleteTicket}

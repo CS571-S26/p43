@@ -1,7 +1,11 @@
-import { Alert } from 'react-bootstrap';
+import { useState } from 'react';
+import { Alert, Form } from 'react-bootstrap';
 import ProductCard from '../components/ProductCard';
+import { PROJECT_CATEGORIES } from '../constants/categories';
 
 function MyProjectsPage({ projects, currentUser, projectsLoading }) {
+  const [categoryFilter, setCategoryFilter] = useState('');
+
   if (projectsLoading) {
     return (
       <div className="d-flex justify-content-center py-5">
@@ -12,6 +16,9 @@ function MyProjectsPage({ projects, currentUser, projectsLoading }) {
 
   const myProjects = projects.filter(
     (project) => project.createdByUid === currentUser.uid,
+  );
+  const filteredProjects = myProjects.filter(
+    (project) => !categoryFilter || project.category === categoryFilter,
   );
 
   return (
@@ -27,13 +34,49 @@ function MyProjectsPage({ projects, currentUser, projectsLoading }) {
         </div>
 
         {myProjects.length > 0 ? (
-          <div className="row g-4">
-            {myProjects.map((project) => (
-              <div className="col-md-6 col-lg-4" key={project.id}>
-                <ProductCard project={project} />
+          <>
+            <div className="project-filter-bar mb-4">
+              <Form.Group
+                controlId="myProjectsCategoryFilter"
+                className="project-filter-field"
+              >
+                <Form.Label>Filter by project category</Form.Label>
+                <Form.Select
+                  value={categoryFilter}
+                  onChange={(event) => setCategoryFilter(event.target.value)}
+                >
+                  <option value="">All categories</option>
+                  {PROJECT_CATEGORIES.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </Form.Select>
+                <Form.Text muted className="project-filter-meta">
+                  Focus on one project type at a time while keeping older
+                  projects safe.
+                </Form.Text>
+              </Form.Group>
+              <p className="project-filter-meta project-search-results mb-0">
+                Showing {filteredProjects.length} of {myProjects.length}{" "}
+                projects
+              </p>
+            </div>
+
+            {filteredProjects.length > 0 ? (
+              <div className="row g-4">
+                {filteredProjects.map((project) => (
+                  <div className="col-md-6 col-lg-4" key={project.id}>
+                    <ProductCard project={project} />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            ) : (
+              <div className="empty-state mt-4">
+                No projects match the selected category.
+              </div>
+            )}
+          </>
         ) : (
           <Alert variant="light" className="border shadow-sm mt-4">
             <strong>You have not created any projects yet.</strong>

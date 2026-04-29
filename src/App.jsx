@@ -13,6 +13,7 @@ import {
   query,
   runTransaction,
   serverTimestamp,
+  updateDoc,
   where,
   writeBatch,
 } from "firebase/firestore";
@@ -24,13 +25,18 @@ import FeedbackBoardPage from "./pages/FeedbackBoardPage";
 import CreateProjectPage from "./pages/CreateProjectPage";
 import AuthPage from "./pages/AuthPage";
 import { db } from "./lib/firebase";
-import { useAuth } from "./contexts/AuthContext";
+import { useAuth } from "./contexts/auth-context";
 import "./App.css";
 
 function App() {
   const [projects, setProjects] = useState([]);
-  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [loadedProjectsKey, setLoadedProjectsKey] = useState("");
   const { currentUser, authLoading } = useAuth();
+  const projectsRequestKey = currentUser
+    ? `${currentUser.uid}:${currentUser.metadata?.lastLoginAt ?? ""}`
+    : "";
+  const projectsLoading =
+    Boolean(currentUser) && loadedProjectsKey !== projectsRequestKey;
 
   useEffect(() => {
     if (authLoading) {
@@ -38,12 +44,8 @@ function App() {
     }
 
     if (!currentUser) {
-      setProjects([]);
-      setProjectsLoading(false);
       return undefined;
     }
-
-    setProjectsLoading(true);
 
     const projectsCollection = collection(db, "projects");
 
@@ -56,11 +58,11 @@ function App() {
         .sort((a, b) => a.name.localeCompare(b.name));
 
       setProjects(nextProjects);
-      setProjectsLoading(false);
+      setLoadedProjectsKey(projectsRequestKey);
     });
 
     return unsubscribe;
-  }, [authLoading, currentUser]);
+  }, [authLoading, currentUser, projectsRequestKey]);
 
   const handleAddProject = async (newProject) => {
     if (!currentUser) {
@@ -82,6 +84,30 @@ function App() {
     return projectRef.id;
   };
 
+  const handleEditProject = async (projectId, updatedProject) => {
+    if (!currentUser) {
+      throw new Error("You must be logged in to edit a project.");
+    }
+
+    const projectRef = doc(db, "projects", projectId);
+    const projectSnapshot = await getDoc(projectRef);
+
+    if (!projectSnapshot.exists()) {
+      throw new Error("This project no longer exists.");
+    }
+
+    if (projectSnapshot.data().createdByUid !== currentUser.uid) {
+      throw new Error("Only the project owner can edit this project.");
+    }
+
+    await updateDoc(projectRef, {
+      name: updatedProject.name,
+      category: updatedProject.category,
+      owner: updatedProject.owner,
+      summary: updatedProject.summary,
+    });
+  };
+
   const handleAddTicket = async (projectId, newTicket) => {
     if (!currentUser) {
       throw new Error("You must be logged in to add an idea.");
@@ -94,6 +120,7 @@ function App() {
     batch.set(ticketRef, {
       title: newTicket.title,
       description: newTicket.description,
+      category: newTicket.category,
       votes: 0,
       createdByUid: currentUser.uid,
       createdByEmail: currentUser.email ?? "",
@@ -105,6 +132,29 @@ function App() {
     });
 
     await batch.commit();
+  };
+
+  const handleEditTicket = async (projectId, ticketId, updatedTicket) => {
+    if (!currentUser) {
+      throw new Error("You must be logged in to edit an idea.");
+    }
+
+    const ticketRef = doc(db, "projects", projectId, "tickets", ticketId);
+    const ticketSnapshot = await getDoc(ticketRef);
+
+    if (!ticketSnapshot.exists()) {
+      throw new Error("This idea no longer exists.");
+    }
+
+    if (ticketSnapshot.data().createdByUid !== currentUser.uid) {
+      throw new Error("Only the idea creator can edit this idea.");
+    }
+
+    await updateDoc(ticketRef, {
+      title: updatedTicket.title,
+      description: updatedTicket.description,
+      category: updatedTicket.category,
+    });
   };
 
   const handleVote = async (projectId, ticketId, currentVote, voteType) => {
@@ -307,12 +357,28 @@ function App() {
     );
 
     const batch = writeBatch(db);
+    let implementedIdeaUpvotes = 0;
+    let implementedIdeaDownvotes = 0;
+
+    relatedVotesSnapshot.forEach((voteDoc) => {
+      const voteValue = voteDoc.data().value;
+
+      if (voteValue === 1) {
+        implementedIdeaUpvotes += 1;
+      } else if (voteValue === -1) {
+        implementedIdeaDownvotes += 1;
+      }
+    });
 
     batch.update(projectRef, {
       implementedIdeas: arrayUnion({
         id: ticketId,
         title: ticketData.title,
         description: ticketData.description,
+        category: ticketData.category ?? "",
+        votes: ticketData.votes ?? 0,
+        upvotes: implementedIdeaUpvotes,
+        downvotes: implementedIdeaDownvotes,
         createdByUid: ticketData.createdByUid ?? "",
         createdByEmail: ticketData.createdByEmail ?? "",
         implementedAt: new Date().toISOString(),
@@ -392,6 +458,8 @@ function App() {
                   projectsLoading={projectsLoading}
                   currentUser={currentUser}
                   onAddTicket={handleAddTicket}
+                  onEditProject={handleEditProject}
+                  onEditTicket={handleEditTicket}
                   onVote={handleVote}
                   onDeleteProject={handleDeleteProject}
                   onDeleteTicket={handleDeleteTicket}

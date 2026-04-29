@@ -178,12 +178,103 @@
   margin-top: 1rem;
 }
 
+.board-owner-stats {
+  background: linear-gradient(135deg, #f4fff6, #ffffff);
+  border: 1px solid #e1efe3;
+  border-radius: 1.25rem;
+  overflow: hidden;
+}
+
+.board-owner-stats .accordion-item,
+.board-owner-stats .accordion-button,
+.board-owner-stats .accordion-body {
+  background: transparent;
+}
+
+.board-owner-stats .accordion-button {
+  padding: 1.2rem 1.35rem;
+  box-shadow: none;
+}
+
+.board-owner-stats .accordion-button:not(.collapsed) {
+  color: inherit;
+  box-shadow: none;
+}
+
+.board-owner-stats .accordion-button::after {
+  margin-left: 1rem;
+}
+
+.board-owner-stats .accordion-body {
+  padding: 0 1.35rem 1.35rem;
+}
+
+.board-owner-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+}
+
+.board-owner-title {
+  display: block;
+  color: #21412b;
+  font-weight: 700;
+}
+
+.board-owner-subtitle {
+  display: block;
+  margin-top: 0.2rem;
+  color: #607767;
+  font-size: 0.92rem;
+}
+
+.board-owner-badge {
+  border: 1px solid #d4e7d8;
+  border-radius: 999px;
+  color: #355442 !important;
+  font-weight: 600;
+}
+
 .board-section-header {
   margin-bottom: 1.5rem;
+  align-items: end;
 }
 
 .project-search-wrapper {
   max-width: 560px;
+}
+
+.project-filter-bar {
+  max-width: 720px;
+}
+
+.project-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(240px, 1fr);
+  gap: 1rem 1.25rem;
+  align-items: start;
+}
+
+.project-filter-column {
+  min-width: 0;
+}
+
+.project-filter-field {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.project-filter-field .form-label,
+.board-control-stack .form-label,
+.board-control-label {
+  margin-bottom: 0.5rem;
+  color: #355442;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .project-search-input {
@@ -203,6 +294,15 @@
   font-size: 0.95rem;
 }
 
+.project-filter-meta {
+  display: block;
+  margin-top: 0.55rem;
+  min-height: 1.3rem;
+  color: #607767;
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
 .new-idea-button {
   padding: 0.8rem 1.25rem !important;
   border-radius: 0.9rem !important;
@@ -211,10 +311,19 @@
 }
 
 .form-control,
-.form-control:focus {
+.form-control:focus,
+.form-select,
+.form-select:focus {
   border-radius: 0.9rem;
   border-color: #d4e7d8;
   box-shadow: none;
+}
+
+.project-filter-bar .form-control,
+.project-filter-bar .form-select,
+.board-section-controls .form-select,
+.board-view-toggle .btn {
+  min-height: 3.05rem;
 }
 
 .form-label {
@@ -231,8 +340,66 @@
   flex-direction: column;
 }
 
+.board-filter-group {
+  min-width: min(100%, 240px);
+}
+
+.board-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.9rem;
+}
+
+.board-stat-card .card-body {
+  padding: 1rem;
+}
+
+.board-stat-note {
+  color: #607767;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.board-section-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.board-control-stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.board-control-label {
+  display: block;
+}
+
+.board-view-toggle {
+  align-self: stretch;
+}
+
+.board-view-toggle .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 1.1rem;
+  white-space: nowrap;
+}
+
 .ticket-card {
   width: 100%;
+}
+
+.idea-category-badge {
+  border: 1px solid #d4e7d8;
+  border-radius: 999px;
+  color: #355442 !important;
+  font-weight: 600;
+  padding: 0.4rem 0.7rem;
 }
 
 .vote-pill,
@@ -295,6 +462,43 @@
 
   .board-page-action {
     margin-top: 0.25rem;
+  }
+
+  .project-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .project-filter-bar {
+    max-width: 100%;
+  }
+
+  .board-section-header {
+    align-items: start;
+  }
+
+  .board-section-controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .board-filter-group {
+    width: 100%;
+  }
+
+  .board-owner-header {
+    align-items: flex-start;
+  }
+
+  .board-control-stack {
+    width: 100%;
+  }
+
+  .board-view-toggle {
+    width: 100%;
+  }
+
+  .board-view-toggle .btn {
+    flex: 1 1 0;
   }
 }
 

@@ -1,8 +1,10 @@
 import { Badge, Button, Card } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
+import { UNCATEGORIZED_LABEL } from '../constants/categories';
 
 function ProductCard({ project }) {
   const ideaCount = project.ticketCount ?? project.tickets?.length ?? 0;
+  const categoryLabel = project.category?.trim() || UNCATEGORIZED_LABEL;
 
   return (
     <Card className="project-card h-100 shadow-sm border-0">
@@ -11,7 +13,7 @@ function ProductCard({ project }) {
           <div>
             <Card.Title className="mb-1">{project.name}</Card.Title>
             <Badge bg="success-subtle" text="success" pill>
-              {project.category}
+              {categoryLabel}
             </Badge>
           </div>
           <div className="ticket-count">{ideaCount} ideas</div>

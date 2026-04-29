@@ -8,11 +8,13 @@ import {
   Card,
   Form,
 } from "react-bootstrap";
+import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { Link, useNavigate } from "react-router-dom";
 import {
   IDEA_CATEGORIES,
   UNCATEGORIZED_LABEL,
 } from "../constants/categories";
+import { db } from "../lib/firebase";
 import ProductForm from "./ProductForm";
 
 const emptyIdeaForm = {
@@ -27,6 +29,30 @@ const normalizeIdeaData = (idea = {}) => ({
   description: idea.description ?? "",
   category: idea.category ?? "",
 });
+const formatCommentTimestamp = (value) => {
+  if (!value) {
+    return "Just now";
+  }
+
+  const date =
+    typeof value?.toDate === "function" ? value.toDate() : new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Just now";
+  }
+
+  return date.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+const normalizeArchivedComments = (comments = []) =>
+  comments.map((comment, index) => ({
+    id: comment.id ?? `archived-${index}`,
+    ...comment,
+  }));
 
 function IdeaFormPanel({
   title,
@@ -187,6 +213,155 @@ function IdeaFormPanel({
   );
 }
 
+function CommentThreadPanel({
+  projectId,
+  ticketId,
+  archived = false,
+  archivedComments = [],
+  currentUser,
+  onAddComment,
+}) {
+  const [comments, setComments] = useState(() =>
+    normalizeArchivedComments(archivedComments),
+  );
+  const [commentText, setCommentText] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [commentsLoading, setCommentsLoading] = useState(!archived);
+
+  useEffect(() => {
+    if (archived) {
+      setComments(normalizeArchivedComments(archivedComments));
+      setCommentsLoading(false);
+      return undefined;
+    }
+
+    if (!projectId || !ticketId) {
+      setComments([]);
+      setCommentsLoading(false);
+      return undefined;
+    }
+
+    setCommentsLoading(true);
+
+    const commentsQuery = query(
+      collection(db, "projects", projectId, "tickets", ticketId, "comments"),
+      orderBy("createdAt", "asc"),
+    );
+
+    const unsubscribe = onSnapshot(commentsQuery, (snapshot) => {
+      const nextComments = snapshot.docs.map((commentDoc) => ({
+        id: commentDoc.id,
+        ...commentDoc.data(),
+      }));
+
+      setComments(nextComments);
+      setCommentsLoading(false);
+    });
+
+    return unsubscribe;
+  }, [archived, archivedComments, projectId, ticketId]);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!currentUser) {
+      return;
+    }
+
+    const trimmedComment = commentText.trim();
+
+    if (!trimmedComment) {
+      setErrorMessage("Please enter a comment before posting.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage("");
+
+    try {
+      await onAddComment(projectId, ticketId, trimmedComment);
+      setCommentText("");
+    } catch (error) {
+      console.error("Unable to add comment:", error);
+      setErrorMessage(
+        "We could not post your comment right now. Please try again.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="comment-thread mt-3">
+      <div className="comment-thread-header">
+        <div>
+          <h5 className="comment-thread-title mb-1">Discussion</h5>
+          <p className="comment-thread-subtitle mb-0">
+            Use comments to ask questions, clarify requests, and discuss
+            tradeoffs.
+          </p>
+        </div>
+        <Badge bg="light" text="dark" className="comment-thread-badge">
+          {comments.length} comments
+        </Badge>
+      </div>
+
+      {commentsLoading ? (
+        <div className="comment-thread-empty">Loading comments...</div>
+      ) : comments.length > 0 ? (
+        <div className="comment-thread-list">
+          {comments.map((comment) => (
+            <div className="comment-thread-item" key={comment.id}>
+              <div className="comment-thread-meta">
+                <span className="comment-thread-author">
+                  {comment.createdByEmail || "Anonymous"}
+                </span>
+                <span className="comment-thread-time">
+                  {formatCommentTimestamp(comment.createdAt)}
+                </span>
+              </div>
+              <p className="comment-thread-text mb-0">{comment.text}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="comment-thread-empty">
+          No comments yet. Start the conversation.
+        </div>
+      )}
+
+      {archived ? null : currentUser ? (
+        <Form onSubmit={handleSubmit} className="comment-thread-form">
+          <Form.Group controlId={`comment-${ticketId}`}>
+            <Form.Label className="small text-muted mb-2">
+              Add a comment
+            </Form.Label>
+            <Form.Control
+              as="textarea"
+              rows={2}
+              value={commentText}
+              onChange={(event) => setCommentText(event.target.value)}
+              placeholder="Ask a question or share a tradeoff..."
+              disabled={isSubmitting}
+            />
+          </Form.Group>
+
+          {errorMessage ? (
+            <p className="text-danger small mb-2 mt-2">{errorMessage}</p>
+          ) : null}
+
+          <div className="d-flex justify-content-end mt-3">
+            <Button type="submit" variant="success" disabled={isSubmitting}>
+              {isSubmitting ? "Posting..." : "Post Comment"}
+            </Button>
+          </div>
+        </Form>
+      ) : null}
+    </div>
+  );
+}
+
 function BoardPreview({
   project,
   tickets,
@@ -195,23 +370,27 @@ function BoardPreview({
   ownerVoteRecords,
   ownerStatsLoading,
   onAddTicket,
+  onAddComment,
   onEditProject,
   onEditTicket,
   onVote,
   onDeleteProject,
   onDeleteTicket,
   onMarkIdeaImplemented,
+  onRestoreImplementedIdea,
 }) {
   const [activeView, setActiveView] = useState("proposed");
   const [showIdeaForm, setShowIdeaForm] = useState(false);
   const [showProjectEditForm, setShowProjectEditForm] = useState(false);
   const [editingTicketId, setEditingTicketId] = useState("");
+  const [openCommentThreads, setOpenCommentThreads] = useState({});
   const navigate = useNavigate();
   const [actionErrorMessage, setActionErrorMessage] = useState("");
   const [isDeletingProject, setIsDeletingProject] = useState(false);
   const [deletingTicketId, setDeletingTicketId] = useState("");
   const isProjectOwner = currentUser?.uid === project.createdByUid;
   const [movingTicketId, setMovingTicketId] = useState("");
+  const [restoringTicketId, setRestoringTicketId] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const projectCategoryLabel = getCategoryLabel(project.category);
 
@@ -321,6 +500,13 @@ function BoardPreview({
     setEditingTicketId("");
   };
 
+  const handleToggleComments = (ticketId) => {
+    setOpenCommentThreads((current) => ({
+      ...current,
+      [ticketId]: !current[ticketId],
+    }));
+  };
+
   const handleVoteClick = async (ticketId, voteType) => {
     if (!currentUser) {
       return;
@@ -418,6 +604,33 @@ function BoardPreview({
     setShowIdeaForm(false);
     setEditingTicketId("");
     setActiveView("implemented");
+  };
+
+  const handleRestoreImplementedClick = async (ticket) => {
+    if (!isProjectOwner) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Move "${ticket.title}" back to Proposed Ideas?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setActionErrorMessage("");
+    setRestoringTicketId(ticket.id);
+
+    try {
+      await onRestoreImplementedIdea(project.id, ticket.id);
+      setActiveView("proposed");
+    } catch (error) {
+      console.error("Unable to restore implemented idea:", error);
+      setActionErrorMessage("We could not move this idea back right now.");
+    } finally {
+      setRestoringTicketId("");
+    }
   };
 
   return (
@@ -615,6 +828,9 @@ function BoardPreview({
                 const currentUserVote = userVotesByTicket[ticket.id] ?? 0;
                 const isIdeaCreator = currentUser?.uid === ticket.createdByUid;
                 const isEditingThisTicket = editingTicketId === ticket.id;
+                const commentCount =
+                  ticket.commentCount ?? ticket.comments?.length ?? 0;
+                const commentsOpen = openCommentThreads[ticket.id] ?? false;
 
                 if (isEditingThisTicket) {
                   return (
@@ -673,6 +889,16 @@ function BoardPreview({
                           </p>
 
                           <div className="mt-3 d-flex gap-2 flex-wrap">
+                            <Button
+                              variant="outline-secondary"
+                              size="sm"
+                              onClick={() => handleToggleComments(ticket.id)}
+                            >
+                              {commentsOpen
+                                ? `Hide Discussion (${commentCount})`
+                                : `Discussion (${commentCount})`}
+                            </Button>
+
                             {showingProposed && isIdeaCreator ? (
                               <Button
                                 variant="outline-success"
@@ -719,7 +945,33 @@ function BoardPreview({
                                   : "Mark Implemented"}
                               </Button>
                             ) : null}
+
+                            {!showingProposed && isProjectOwner ? (
+                              <Button
+                                variant="outline-success"
+                                size="sm"
+                                disabled={restoringTicketId === ticket.id}
+                                onClick={() =>
+                                  handleRestoreImplementedClick(ticket)
+                                }
+                              >
+                                {restoringTicketId === ticket.id
+                                  ? "Restoring..."
+                                  : "Move to Proposed"}
+                              </Button>
+                            ) : null}
                           </div>
+
+                          {commentsOpen ? (
+                            <CommentThreadPanel
+                              projectId={project.id}
+                              ticketId={showingProposed ? ticket.id : ""}
+                              archived={!showingProposed}
+                              archivedComments={ticket.comments ?? []}
+                              currentUser={currentUser}
+                              onAddComment={onAddComment}
+                            />
+                          ) : null}
                         </div>
 
                         {showingProposed ? (

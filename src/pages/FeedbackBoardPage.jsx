@@ -10,12 +10,14 @@ function FeedbackBoardPage({
   projectsLoading,
   currentUser,
   onAddTicket,
+  onAddComment,
   onEditProject,
   onEditTicket,
   onVote,
   onDeleteProject,
   onDeleteTicket,
   onMarkIdeaImplemented,
+  onRestoreImplementedIdea,
 }) {
   const { projectId } = useParams();
   const project = projects.find((item) => item.id === projectId);
@@ -133,12 +135,14 @@ function FeedbackBoardPage({
             ownerVoteRecords={ownerVoteRecords}
             ownerStatsLoading={ownerStatsLoading}
             onAddTicket={onAddTicket}
+            onAddComment={onAddComment}
             onEditProject={onEditProject}
             onEditTicket={onEditTicket}
             onVote={onVote}
             onDeleteProject={onDeleteProject}
             onDeleteTicket={onDeleteTicket}
             onMarkIdeaImplemented={onMarkIdeaImplemented}
+            onRestoreImplementedIdea={onRestoreImplementedIdea}
           />
         )}
       </Container>

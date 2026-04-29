@@ -10,6 +10,7 @@ import {
   getDocs,
   increment,
   onSnapshot,
+  orderBy,
   query,
   runTransaction,
   serverTimestamp,
@@ -122,6 +123,7 @@ function App() {
       description: newTicket.description,
       category: newTicket.category,
       votes: 0,
+      commentCount: 0,
       createdByUid: currentUser.uid,
       createdByEmail: currentUser.email ?? "",
       createdAt: serverTimestamp(),
@@ -129,6 +131,37 @@ function App() {
 
     batch.update(projectRef, {
       ticketCount: increment(1),
+    });
+
+    await batch.commit();
+  };
+
+  const handleAddComment = async (projectId, ticketId, text) => {
+    if (!currentUser) {
+      throw new Error("You must be logged in to comment.");
+    }
+
+    const commentText = text.trim();
+
+    if (!commentText) {
+      throw new Error("Comment text is required.");
+    }
+
+    const ticketRef = doc(db, "projects", projectId, "tickets", ticketId);
+    const commentRef = doc(
+      collection(db, "projects", projectId, "tickets", ticketId, "comments"),
+    );
+    const batch = writeBatch(db);
+
+    batch.set(commentRef, {
+      text: commentText,
+      createdByUid: currentUser.uid,
+      createdByEmail: currentUser.email ?? "",
+      createdAt: serverTimestamp(),
+    });
+
+    batch.update(ticketRef, {
+      commentCount: increment(1),
     });
 
     await batch.commit();
@@ -245,6 +278,20 @@ function App() {
     const ticketsSnapshot = await getDocs(
       collection(db, "projects", projectId, "tickets"),
     );
+    const ticketCommentsSnapshots = await Promise.all(
+      ticketsSnapshot.docs.map((ticketDoc) =>
+        getDocs(
+          collection(
+            db,
+            "projects",
+            projectId,
+            "tickets",
+            ticketDoc.id,
+            "comments",
+          ),
+        ),
+      ),
+    );
 
     const votesSnapshot = await getDocs(
       collection(db, "projects", projectId, "votes"),
@@ -254,6 +301,12 @@ function App() {
 
     ticketsSnapshot.forEach((ticketDoc) => {
       batch.delete(ticketDoc.ref);
+    });
+
+    ticketCommentsSnapshots.forEach((commentsSnapshot) => {
+      commentsSnapshot.forEach((commentDoc) => {
+        batch.delete(commentDoc.ref);
+      });
     });
 
     votesSnapshot.forEach((voteDoc) => {
@@ -305,11 +358,18 @@ function App() {
         where("ticketId", "==", ticketId),
       ),
     );
+    const commentsSnapshot = await getDocs(
+      collection(db, "projects", projectId, "tickets", ticketId, "comments"),
+    );
 
     const batch = writeBatch(db);
 
     relatedVotesSnapshot.forEach((voteDoc) => {
       batch.delete(voteDoc.ref);
+    });
+
+    commentsSnapshot.forEach((commentDoc) => {
+      batch.delete(commentDoc.ref);
     });
 
     batch.delete(ticketRef);
@@ -355,10 +415,20 @@ function App() {
         where("ticketId", "==", ticketId),
       ),
     );
+    const commentsSnapshot = await getDocs(
+      query(
+        collection(db, "projects", projectId, "tickets", ticketId, "comments"),
+        orderBy("createdAt", "asc"),
+      ),
+    );
 
     const batch = writeBatch(db);
     let implementedIdeaUpvotes = 0;
     let implementedIdeaDownvotes = 0;
+    const archivedComments = commentsSnapshot.docs.map((commentDoc) => ({
+      id: commentDoc.id,
+      ...commentDoc.data(),
+    }));
 
     relatedVotesSnapshot.forEach((voteDoc) => {
       const voteValue = voteDoc.data().value;
@@ -379,6 +449,8 @@ function App() {
         votes: ticketData.votes ?? 0,
         upvotes: implementedIdeaUpvotes,
         downvotes: implementedIdeaDownvotes,
+        commentCount: archivedComments.length,
+        comments: archivedComments,
         createdByUid: ticketData.createdByUid ?? "",
         createdByEmail: ticketData.createdByEmail ?? "",
         implementedAt: new Date().toISOString(),
@@ -390,7 +462,93 @@ function App() {
       batch.delete(voteDoc.ref);
     });
 
+    commentsSnapshot.forEach((commentDoc) => {
+      batch.delete(commentDoc.ref);
+    });
+
     batch.delete(ticketRef);
+
+    await batch.commit();
+  };
+
+  const handleRestoreImplementedIdea = async (projectId, ticketId) => {
+    if (!currentUser) {
+      throw new Error("You must be logged in to update an idea.");
+    }
+
+    const projectRef = doc(db, "projects", projectId);
+    const ticketRef = doc(db, "projects", projectId, "tickets", ticketId);
+
+    const [projectSnapshot, ticketSnapshot] = await Promise.all([
+      getDoc(projectRef),
+      getDoc(ticketRef),
+    ]);
+
+    if (!projectSnapshot.exists()) {
+      throw new Error("This project no longer exists.");
+    }
+
+    if (ticketSnapshot.exists()) {
+      throw new Error("This idea has already been restored.");
+    }
+
+    const projectData = projectSnapshot.data();
+
+    if (projectData.createdByUid !== currentUser.uid) {
+      throw new Error(
+        "Only the project owner can move ideas back to proposed.",
+      );
+    }
+
+    const implementedIdeas = projectData.implementedIdeas ?? [];
+    const implementedIdea = implementedIdeas.find((idea) => idea.id === ticketId);
+
+    if (!implementedIdea) {
+      throw new Error("This implemented idea no longer exists.");
+    }
+
+    const remainingImplementedIdeas = implementedIdeas.filter(
+      (idea) => idea.id !== ticketId,
+    );
+    const restoredComments = implementedIdea.comments ?? [];
+    const batch = writeBatch(db);
+
+    batch.set(ticketRef, {
+      title: implementedIdea.title ?? "",
+      description: implementedIdea.description ?? "",
+      category: implementedIdea.category ?? "",
+      votes: implementedIdea.votes ?? 0,
+      commentCount:
+        implementedIdea.commentCount ?? restoredComments.length ?? 0,
+      createdByUid: implementedIdea.createdByUid ?? currentUser.uid,
+      createdByEmail:
+        implementedIdea.createdByEmail ?? currentUser.email ?? "",
+      createdAt: serverTimestamp(),
+    });
+
+    restoredComments.forEach((comment, index) => {
+      const restoredCommentRef = doc(
+        db,
+        "projects",
+        projectId,
+        "tickets",
+        ticketId,
+        "comments",
+        comment.id ?? `restored-${index}`,
+      );
+
+      batch.set(restoredCommentRef, {
+        text: comment.text ?? "",
+        createdByUid: comment.createdByUid ?? currentUser.uid,
+        createdByEmail: comment.createdByEmail ?? "",
+        createdAt: comment.createdAt ?? serverTimestamp(),
+      });
+    });
+
+    batch.update(projectRef, {
+      implementedIdeas: remainingImplementedIdeas,
+      ticketCount: increment(1),
+    });
 
     await batch.commit();
   };
@@ -458,12 +616,14 @@ function App() {
                   projectsLoading={projectsLoading}
                   currentUser={currentUser}
                   onAddTicket={handleAddTicket}
+                  onAddComment={handleAddComment}
                   onEditProject={handleEditProject}
                   onEditTicket={handleEditTicket}
                   onVote={handleVote}
                   onDeleteProject={handleDeleteProject}
                   onDeleteTicket={handleDeleteTicket}
                   onMarkIdeaImplemented={handleMarkIdeaImplemented}
+                  onRestoreImplementedIdea={handleRestoreImplementedIdea}
                 />
               </ProtectedRoute>
             }
